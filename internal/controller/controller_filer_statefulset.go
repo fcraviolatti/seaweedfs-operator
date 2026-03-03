@@ -117,7 +117,15 @@ func (r *SeaweedReconciler) createFilerStatefulSet(m *seaweedv1.Seaweed) *appsv1
 cp /etc/seaweedfs-template/filer.toml /etc/seaweedfs/filer.toml
 if [ -f /etc/seaweedfs-password/password ]; then
     PASSWORD=$(cat /etc/seaweedfs-password/password)
-    sed -i "s|^password = .*|password = \"${PASSWORD}\"|" /etc/seaweedfs/filer.toml
+    LINE_NUM=$(grep -n "^password = " /etc/seaweedfs/filer.toml | head -1 | cut -d: -f1)
+    if [ -n "$LINE_NUM" ]; then
+        {
+            head -n "$((LINE_NUM - 1))" /etc/seaweedfs/filer.toml
+            printf 'password = "%s"\n' "$PASSWORD"
+            tail -n "+$((LINE_NUM + 1))" /etc/seaweedfs/filer.toml
+        } > /etc/seaweedfs/filer.toml.tmp
+        mv /etc/seaweedfs/filer.toml.tmp /etc/seaweedfs/filer.toml
+    fi
 fi
 `},
 				VolumeMounts: []corev1.VolumeMount{
