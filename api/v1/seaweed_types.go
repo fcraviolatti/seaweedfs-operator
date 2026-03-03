@@ -251,6 +251,12 @@ type FilerSpec struct {
 	// Config in raw toml string
 	Config *string `json:"config,omitempty"`
 
+	// ConfigPasswordSecretRef injects a password from a Kubernetes Secret into the
+	// filer config at runtime via an init container, avoiding plaintext credentials
+	// in the Seaweed CR. The referenced key replaces the `password = ""` line in
+	// the [mysql] or [postgres] section of spec.filer.config.
+	ConfigPasswordSecretRef *corev1.SecretKeySelector `json:"configPasswordSecretRef,omitempty"`
+
 	// MetricsPort is the port that the prometheus metrics export listens on
 	MetricsPort *int32 `json:"metricsPort,omitempty"`
 

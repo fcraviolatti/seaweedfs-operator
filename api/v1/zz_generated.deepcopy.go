@@ -158,6 +158,11 @@ func (in *FilerSpec) DeepCopyInto(out *FilerSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.ConfigPasswordSecretRef != nil {
+		in, out := &in.ConfigPasswordSecretRef, &out.ConfigPasswordSecretRef
+		*out = new(corev1.SecretKeySelector)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.MetricsPort != nil {
 		in, out := &in.MetricsPort, &out.MetricsPort
 		*out = new(int32)
