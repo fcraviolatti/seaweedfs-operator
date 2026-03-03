@@ -79,12 +79,68 @@ func (r *SeaweedReconciler) createFilerStatefulSet(m *seaweedv1.Seaweed) *appsv1
 			},
 		},
 	})
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "filer-config",
-			ReadOnly:  true,
-			MountPath: "/etc/seaweedfs",
-		},
+
+	var volumeMounts []corev1.VolumeMount
+
+	if m.Spec.Filer.ConfigPasswordSecretRef != nil {
+		// Password injection mode:
+		// ConfigMap  → /etc/seaweedfs-template/ (template without real password)
+		// Secret     → /etc/seaweedfs-password/ (password only, mapped to filename "password")
+		// emptyDir   → /etc/seaweedfs/          (merged config written by init container)
+		filerPodSpec.Volumes = append(filerPodSpec.Volumes,
+			corev1.Volume{
+				Name:         "filer-config-merged",
+				VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+			},
+			corev1.Volume{
+				Name: "filer-password",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: m.Spec.Filer.ConfigPasswordSecretRef.Name,
+						Items: []corev1.KeyToPath{
+							{
+								Key:  m.Spec.Filer.ConfigPasswordSecretRef.Key,
+								Path: "password",
+							},
+						},
+					},
+				},
+			},
+		)
+
+		filerPodSpec.InitContainers = []corev1.Container{
+			{
+				Name:            "filer-config-init",
+				Image:           m.Spec.Image,
+				ImagePullPolicy: m.BaseFilerSpec().ImagePullPolicy(),
+				Command: []string{"/bin/sh", "-ec", `
+cp /etc/seaweedfs-template/filer.toml /etc/seaweedfs/filer.toml
+if [ -f /etc/seaweedfs-password/password ]; then
+    PASSWORD=$(cat /etc/seaweedfs-password/password)
+    sed -i "s|^password = .*|password = \"${PASSWORD}\"|" /etc/seaweedfs/filer.toml
+fi
+`},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "filer-config", MountPath: "/etc/seaweedfs-template", ReadOnly: true},
+					{Name: "filer-password", MountPath: "/etc/seaweedfs-password", ReadOnly: true},
+					{Name: "filer-config-merged", MountPath: "/etc/seaweedfs"},
+				},
+			},
+		}
+
+		volumeMounts = []corev1.VolumeMount{
+			{Name: "filer-config", MountPath: "/etc/seaweedfs-template", ReadOnly: true},
+			{Name: "filer-config-merged", MountPath: "/etc/seaweedfs"},
+		}
+	} else {
+		// Standard mode: mount ConfigMap directly at /etc/seaweedfs/ (existing behaviour)
+		volumeMounts = []corev1.VolumeMount{
+			{
+				Name:      "filer-config",
+				ReadOnly:  true,
+				MountPath: "/etc/seaweedfs",
+			},
+		}
 	}
 
 	if m.Spec.Filer.S3 != nil && m.Spec.Filer.S3.Enabled && m.Spec.Filer.S3.ConfigSecret != nil && m.Spec.Filer.S3.ConfigSecret.Name != "" {
