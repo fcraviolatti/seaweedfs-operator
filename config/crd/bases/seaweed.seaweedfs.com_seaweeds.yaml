@@ -924,6 +924,19 @@ spec:
                     x-kubernetes-list-type: map
                   config:
                     type: string
+                  configPasswordSecretRef:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   env:
                     items:
                       properties:
